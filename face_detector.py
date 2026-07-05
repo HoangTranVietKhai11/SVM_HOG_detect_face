@@ -14,34 +14,40 @@ def detect_and_crop(image_path):
     if img is None:
         raise FileNotFoundError(f"Không đọc được ảnh: {image_path}")
 
+    # Resize ảnh lớn xuống max 800px để Haar Cascade chạy nhanh hơn
+    MAX_DIM = 800
+    h_orig, w_orig = img.shape[:2]
+    scale = 1.0
+    if max(h_orig, w_orig) > MAX_DIM:
+        scale = MAX_DIM / max(h_orig, w_orig)
+        img_small = cv2.resize(img, (int(w_orig * scale), int(h_orig * scale)))
+    else:
+        img_small = img
+
     # Chuyển sang ảnh xám để tăng tốc độ detect
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
 
     faces = face_cascade.detectMultiScale(
         gray,
-
-        # Mỗi lần thu nhỏ ảnh 10% để tạo Image Pyramid.
-        # Giá trị càng gần 1 thì detect càng kỹ nhưng sẽ chậm hơn.
-        scaleFactor=1.1,
-
-        # Một vùng phải được phát hiện ít nhất 5 lần
-        # mới được coi là khuôn mặt thật.
-        # Giá trị càng lớn thì càng giảm false positive.
-        minNeighbors=5,
-
-        # Bỏ qua những khuôn mặt nhỏ hơn 48x48 pixel.
-        # Giúp tránh nhận nhầm các vật thể nhỏ.
-        minSize=(48, 48)
+        # Tăng độ nhạy (sensitive) để dễ nhận diện hơn (giống như trong app.py)
+        scaleFactor=1.05,
+        minNeighbors=3,
+        minSize=(30, 30)
     )
 
     # Không tìm thấy khuôn mặt
     if len(faces) == 0:
         return None, img
 
-    # Lấy khuôn mặt đầu tiên
+    # Lấy khuôn mặt đầu tiên và scale tọa độ về ảnh gốc
     x, y, w, h = faces[0]
+    if scale != 1.0:
+        x = int(x / scale)
+        y = int(y / scale)
+        w = int(w / scale)
+        h = int(h / scale)
 
-    # Cắt khuôn mặt
+    # Cắt khuôn mặt từ ảnh gốc (chất lượng cao hơn)
     face_roi = img[y:y + h, x:x + w]
 
     # Resize về kích thước chuẩn

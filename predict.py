@@ -9,6 +9,9 @@ from hog_extractor import extract_hog
 MODEL_IDENTITY_PATH = "models/model_identity.pkl"
 MODEL_LIVENESS_PATH = "models/model_liveness.pkl"
 
+import functools
+
+@functools.lru_cache(maxsize=1)
 def load_models():
     if not os.path.exists(MODEL_IDENTITY_PATH):
         raise FileNotFoundError(f"Chưa có model: {MODEL_IDENTITY_PATH} — chờ Đức train xong gửi file .pkl")
@@ -18,6 +21,12 @@ def load_models():
     model_identity = joblib.load(MODEL_IDENTITY_PATH)
     model_liveness = joblib.load(MODEL_LIVENESS_PATH)
     return model_identity, model_liveness
+
+@functools.lru_cache(maxsize=1)
+def get_face_cascade():
+    return cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
 
 def predict(image_path):
     #buoc1: detect va crop khuon mat
@@ -73,7 +82,60 @@ def draw_result(img, identity, liveness):
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     
     return result
+
+def process_and_predict(img):
+    """
+    Nhận ảnh dạng numpy array (BGR), detect tất cả khuôn mặt,
+    trả về list kết quả cho từng mặt — dùng cho Streamlit app.
+    """
+    model_identity, model_liveness = load_models()
+    face_cascade = get_face_cascade()
+
+    # Resize ảnh lớn trước khi detect
+    MAX_DIM = 800
+    h_orig, w_orig = img.shape[:2]
+    scale = 1.0
+    if max(h_orig, w_orig) > MAX_DIM:
+        scale = MAX_DIM / max(h_orig, w_orig)
+        img_small = cv2.resize(img, (int(w_orig * scale), int(h_orig * scale)))
+    else:
+        img_small = img
+
+    gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
+    # Tăng độ nhạy (sensitive) cho camera thực tế
+    # - scaleFactor=1.05: Quét kỹ hơn các kích thước khuôn mặt
+    # - minNeighbors=3: Dễ dàng nhận diện hơn (chấp nhận ít box trùng lắp hơn)
+    # - minSize=(30, 30): Bắt được khuôn mặt ở khoảng cách xa hơn
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30))
+
+    results = []
+    for (x, y, w, h) in faces:
+        # Scale tọa độ về ảnh gốc
+        if scale != 1.0:
+            x, y, w, h = int(x/scale), int(y/scale), int(w/scale), int(h/scale)
+
+        # Crop và resize khuôn mặt
+        face_roi = img[y:y+h, x:x+w]
+        if face_roi.size == 0:
+            continue
+        face_resized = cv2.resize(face_roi, (64, 64))
+
+        # Trích HOG và predict
+        hog_vec = extract_hog(face_resized).reshape(1, -1)
+        identity = model_identity.predict(hog_vec)[0]
+        liveness = model_liveness.predict(hog_vec)[0]
+
+        results.append({
+            "box": (x, y, w, h),
+            "name": identity,
+            "liveness": "Real" if liveness == "real" else "Spoof"
+        })
+
+    return results
+
+
 if __name__ == "__main__":
+
     result = predict("ten_anh_cua_ban.jpg")  # sửa tên ảnh
     
     if result["status"] == "ok":

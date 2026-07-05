@@ -1,119 +1,69 @@
-# 🎭 Ứng dụng Điểm danh Khuôn mặt tích hợp Anti-Spoofing
-
-> Đồ án cuối kỳ | HOG + SVM + Streamlit Web App
-> Nhóm thực hiện: **Hoàng Trần Việt Khải** & **Vũ Huy Đức**
-
-Web app cho phép upload ảnh khuôn mặt → phát hiện khuôn mặt → nhận diện danh tính (Khải / Đức / Unknown) → phán đoán Thật / Giả mạo → hiển thị bounding box + nhãn kết quả trực quan.
-
-⚠️ **Định hướng dự án:** Tập trung toàn lực vào HOG + SVM chạy đúng. Thầy ấn tượng thuật toán hơn giao diện đẹp. Không dùng Flutter, không dùng FastAPI — tất cả gộp trong 1 app Python.
+# 🎓 KỊCH BẢN THUYẾT TRÌNH ĐỒ ÁN CUỐI KỲ (15-20 Phút)
+**Môn học:** Thị giác máy tính (Computer Vision)
+**Chủ đề:** HOG + SVM (Phát hiện và Phân loại đối tượng)
+**Đề tài mở rộng:** Điểm danh khuôn mặt & Chống giả mạo (Anti-Spoofing)
+**Nhóm thực hiện:** Khải (Backend/Streamlit) & Đức (Data/SVM)
 
 ---
 
-## 🏗️ Kiến trúc
-
-- **Frontend:** Streamlit (Python) — upload ảnh, hiển thị kết quả
-- **Backend:** OpenCV + scikit-learn — HOG extraction + SVM predict
-- **Face Detection:** Haar Cascade (có sẵn trong OpenCV)
-- **Classification:** 2 mô hình SVM riêng biệt (nhận diện danh tính + liveness detection)
-
----
-
-## 📁 Cấu trúc thư mục dự án
-
-```
-project/
-├── dataset/
-│   ├── real/
-│   │   ├── khai/          ← 50 ảnh khuôn mặt thật của Khải
-│   │   └── duc/            ← 50 ảnh khuôn mặt thật của Đức
-│   └── spoof/               ← 50 ảnh giả mạo qua màn hình
-├── models/
-│   ├── model_identity.pkl   ← SVM nhận diện danh tính
-│   └── model_liveness.pkl   ← SVM phân loại thật/giả
-├── face_detector.py          ← Haar Cascade detect khuôn mặt        [Khải]
-├── hog_extractor.py           ← Trích xuất HOG vector                [Khải]
-├── preprocess.py               ← Tiền xử lý + trích HOG dataset        [Đức]
-├── train_svm.py                 ← Huấn luyện 2 model SVM                [Đức]
-├── predict.py                    ← Load model + chạy pipeline             [Khải]
-├── app.py                         ← Streamlit web app                      [Khải]
-└── README.md
-```
-
----
-
-## ⚙️ Cài đặt môi trường
-
+## 🚀 1. Lệnh Chạy Demo (Lưu sẵn để mở ngay lúc báo cáo)
+**Khải** chuẩn bị sẵn Terminal và gõ lệnh này (khoảng 30 giây trước khi bắt đầu demo để hệ thống load model):
 ```bash
-pip install opencv-python scikit-learn streamlit numpy joblib
-```
-
-## 🚀 Chạy ứng dụng
-
-```bash
+# Đảm bảo đã kích hoạt môi trường ảo (venv)
 streamlit run app.py
 ```
+> *Mẹo:* Lúc thuyết trình, hãy mở sẵn tab **"Camera giám sát"** để thầy cô thấy được tính năng chạy thời gian thực (Real-time).
 
 ---
 
-## 👥 Phân công nhiệm vụ & Timeline
+## ⏱️ 2. PHÂN BỔ THỜI GIAN THUYẾT TRÌNH (15 PHÚT)
 
-### 🟦 Hoàng Trần Việt Khải — Backend + Web App
+### Phần 1: Đặt vấn đề & Giới thiệu (2-3 phút) - *[Đức hoặc Khải nói]*
+*   **Chào hỏi:** Chào thầy và các bạn, nhóm chúng em gồm Khải và Đức xin trình bày Chủ đề 2: Dùng HOG và SVM để phát hiện đối tượng.
+*   **Lý do chọn đề tài:** Thay vì làm phát hiện người đi bộ (Pedestrian) khá cơ bản, nhóm em quyết định mở rộng làm bài toán **Hệ thống Điểm danh Khuôn mặt**. 
+*   **Điểm nhấn:** Đặc biệt, nhóm không chỉ nhận diện danh tính (Identity) mà còn giải quyết một bài toán rất thực tế là **Anti-spoofing (Chống giả mạo)**: phát hiện kẻ gian dùng ảnh in giấy hoặc màn hình điện thoại để qua mặt camera.
 
-| Ngày | Công việc |
-|---|---|
-| **Thứ 6 (hôm nay)** | Cài môi trường + viết `face_detector.py` (Haar Cascade): detect vùng khuôn mặt → cắt ROI → resize 64×64. Test trên 3–4 ảnh. |
-| **Thứ 7** | Viết `hog_extractor.py` (HOG params: `winSize=(64,64)`, `blockSize=(16,16)`, `cellSize=(8,8)`, `nbins=9`) và `predict.py` (load 2 model `.pkl` từ Đức → pipeline detect → HOG → predict). |
-| **Chủ nhật** | Viết `app.py` bằng Streamlit: upload ảnh, gọi `predict.py`, vẽ bounding box xanh (Thật) / đỏ (Giả) + nhãn danh tính. Test end-to-end. |
-| **Thứ 2 – Thứ 3** | Fix bug, chụp ảnh demo, viết báo cáo phần Face Detection + HOG + kiến trúc web app. Ôn vấn đáp. |
+### Phần 2: Giải thích Luồng thuật toán Pipeline (5-7 phút)
+**Khải trình bày (Phần Xử lý ảnh - Computer Vision):**
+1.  **Quét khuôn mặt (Haar Cascade):** Khi ảnh/video đưa vào, hệ thống chuyển sang ảnh xám và dùng thuật toán Haar Cascade quét các đặc trưng sáng/tối (mắt, mũi). Khi phát hiện mặt, nó sẽ cắt (crop) và **resize chuẩn về 64x64 pixel**.
+2.  **Rút trích đặc trưng (HOG):** Ảnh 64x64 không đem so sánh pixel trực tiếp, mà được đưa qua HOG. HOG sẽ quét độ dốc (gradient) các góc cạnh khuôn mặt, đếm phân bố của chúng và nén lại thành một vector duy nhất dài **1764 chiều**. Bất cứ khuôn mặt nào đưa vào cũng sẽ bị mã hóa thành 1764 con số này.
 
-⚠️ **Lưu ý kỹ thuật:** Hiểu rõ tại sao resize về 64×64 — HOG descriptor cần kích thước cố định để vector đặc trưng có cùng chiều dài cho tất cả ảnh. Đây là phần lý thuyết cốt lõi, cần hiểu từng tham số HOG để trả lời vấn đáp.
+**Đức trình bày (Phần Học máy - Machine Learning):**
+3.  **So sánh và Phân loại bằng AI (SVM):** Vector 1764 chiều này được ném vào 2 mô hình SVM độc lập mà nhóm đã train sẵn:
+    *   **SVM 1 (Định danh - Multi-class):** Phân loại vector này thuộc về Khải, Đức hay là Unknown (Người lạ).
+    *   **SVM 2 (Chống giả mạo - Binary):** Kiểm tra xem phân bố HOG này là bề mặt da thật (Real), hay chứa các vân nhiễu Moiré/tia lóa đặc trưng của màn hình điện thoại (Spoof).
 
-### 🟩 Vũ Huy Đức — Data + Train SVM
-
-| Ngày | Công việc |
-|---|---|
-| **Thứ 6 (hôm nay)** | Thu thập dataset: 50 ảnh thật của Khải, 50 ảnh thật của Đức (đa dạng góc độ/ánh sáng/biểu cảm), 50 ảnh giả mạo (chụp lại ảnh phát trên điện thoại/laptop). Tổ chức vào `dataset/real/khai/`, `dataset/real/duc/`, `dataset/spoof/`. |
-| **Thứ 7** | Viết `preprocess.py` (Haar Cascade cắt mặt → resize 64×64 → trích HOG → lưu `X_train.npy`, `y_train.npy`). Train **SVM Model 1** (nhận diện danh tính: khai/duc/unknown) dùng `sklearn.svm.LinearSVC`, đánh giá accuracy + confusion matrix, lưu `model_identity.pkl`. |
-| **Chủ nhật** | Train **SVM Model 2** (liveness detection: real/spoof), đánh giá accuracy/F1/confusion matrix, lưu `model_liveness.pkl`. **Gửi 2 file `.pkl` cho Khải trước tối Chủ nhật** để kịp test pipeline. |
-| **Thứ 2 – Thứ 3** | Viết báo cáo phần lý thuyết SVM + quá trình thu thập data + bảng kết quả accuracy/F1. Ôn vấn đáp. Hỗ trợ Khải nếu lỗi liên quan định dạng HOG vector. |
-
-⚠️ **Deadline quan trọng:** Giao file `.pkl` cho Khải chậm nhất tối Chủ nhật, để Khải có thời gian test pipeline.
-
----
-
-## 🎯 Thứ tự ưu tiên nếu không kịp tiến độ
-
-Nếu bị trễ, cắt theo thứ tự — phần trên quan trọng hơn phần dưới:
-
-| TT | Hạng mục | Mức độ | Lý do |
-|---|---|---|---|
-| 1 | HOG vector trích xuất đúng | Bắt buộc | 30% điểm lý thuyết |
-| 2 | SVM train được, accuracy hợp lý | Bắt buộc | 40% điểm thuật toán |
-| 3 | Web app Streamlit chạy được | Quan trọng | Demo thực tế |
-| 4 | Liveness Detection (Anti-Spoofing) | Tùy thời gian | 20% sáng tạo |
-| 5 | Giao diện đẹp | Không cần thiết | Không ảnh hưởng điểm |
+### Phần 3: Chạy Demo trực tiếp (3-5 phút) - *[Khải thao tác máy]*
+*   **Bước 1:** Khải bật tab Camera, đưa mặt mình vào -> Báo Xanh lá + Tên Khải. (Database bên cạnh sẽ load ảnh mẫu của Khải).
+*   **Bước 2:** Đức đưa mặt vào -> Báo Xanh lá + Tên Đức.
+*   **Bước 3 (Ăn điểm):** Khải lấy điện thoại, bật 1 bức ảnh của Khải/Đức lên và giơ trước Camera -> Hệ thống phát hiện đây là khuôn mặt Khải/Đức, nhưng vẽ **Khung màu Cam (Spoof)** cảnh báo đây là giả mạo!
+*   **Bước 4:** Đức nhờ 1 bạn khác trong lớp (không có trong data) ló mặt vào -> Hệ thống báo **Khung màu Đỏ (KHONG HOP LE)**.
 
 ---
 
-## 🎓 Chuẩn bị vấn đáp
+## 🛡️ 3. CHUẨN BỊ VẤN ĐÁP (5 PHÚT Q&A - BẢO VỆ ĐỒ ÁN)
 
-### Hoàng Trần Việt Khải cần trả lời được
+### 🔴 Câu hỏi cho Khải (Về Ảnh / Web / Pipeline)
+**Q1: Tại sao phải Resize ảnh về 64x64 trước khi làm HOG?**
+> **Khải đáp:** Dạ thưa thầy, thuật toán học máy SVM yêu cầu đầu vào phải có số chiều cố định. Đặc trưng HOG phụ thuộc vào kích thước ảnh (ảnh to sẽ sinh ra mảng số to). Do đó, nhóm bắt buộc phải quy hoạch tất cả khuôn mặt bị cắt ra về chung kích thước 64x64. Kích thước này đủ nhỏ để tính toán nhanh (real-time) và đủ lớn để giữ lại các đặc trưng cấu trúc mặt.
 
-- **Haar Cascade:** bộ phát hiện đặc trưng được train trước trên hàng nghìn ảnh khuôn mặt, nhận diện dựa trên các đặc trưng Haar (sự chênh lệch độ sáng giữa các vùng ảnh liền kề).
-- **Tại sao resize về 64×64:** HOG descriptor yêu cầu kích thước đầu vào cố định để tạo ra vector đặc trưng có cùng chiều dài — SVM chỉ nhận input có số chiều nhất quán.
-- **blockSize=(16,16), cellSize=(8,8) nghĩa là gì:** mỗi cell 8×8 pixel, mỗi block gồm 2×2 cells = 16×16. Với window 64×64 sẽ có 7×7 = 49 blocks, mỗi block 4 cells × 9 bins = 36 chiều, tổng vector = 49×36 = 1764 chiều.
-- **Streamlit:** thư viện Python tạo web app nhanh, cho phép nhúng code xử lý ảnh trực tiếp mà không cần viết HTML/CSS hay REST API riêng.
+**Q2: Số 1764 chiều của HOG từ đâu ra? Em tính như nào?**
+> **Khải đáp:** Ảnh 64x64 được chia thành các ô nhỏ (cell) 8x8. Các cell được gom thành block 16x16 (chứa 4 cells). Khi trượt block dọc theo ảnh với bước nhảy (stride) = 8, em sẽ có tổng cộng 7x7 = 49 blocks. Mỗi cell tính ra 9 giá trị góc (9 bins), nên 1 block = 4x9 = 36 giá trị. Tổng cộng toàn bộ ảnh là: 49 blocks × 36 = 1764 chiều.
 
-### Vũ Huy Đức cần trả lời được
-
-- **C parameter trong SVM:** kiểm soát trade-off giữa margin rộng và lỗi phân loại. C nhỏ → margin rộng, chấp nhận nhiều lỗi hơn (underfit). C lớn → margin hẹp, cố gắng phân loại đúng hết (dễ overfit).
-- **Tại sao 2 SVM riêng biệt:** vì 2 bài toán khác nhau về bản chất — nhận diện danh tính là multi-class (phân 3+ lớp), liveness detection là binary (thật/giả). Gộp lại thì vector đặc trưng cần học 2 pattern khác nhau cùng lúc, kém hiệu quả hơn.
-- **Class imbalance:** nếu ảnh thật nhiều hơn ảnh giả nhiều, model dễ bias về class đa số. Xử lý bằng `class_weight='balanced'` trong `LinearSVC` hoặc cân bằng số lượng ảnh khi thu thập.
-- **Tại sao HOG phát hiện giả mạo được:** màn hình điện thoại/laptop tạo ra vân Moiré và phản xạ đặc trưng khác hoàn toàn với cấu trúc bề mặt da người — HOG bắt được sự khác biệt này qua phân bố hướng gradient.
+**Q3: Giao diện Web em dùng framework gì? Tại sao luồng Camera không bị giật lag?**
+> **Khải đáp:** Nhóm em dùng Streamlit của Python vì nó hỗ trợ nhúng thẳng xử lý mảng (Numpy/OpenCV) lên web mà không cần viết API backend phức tạp. Để không bị lag, em đã tối ưu hạ độ phân giải luồng camera OpenCV xuống 640x480 để giảm tải xử lý, đảm bảo HOG quét mượt mà.
 
 ---
 
-## 📌 Ghi chú
+### 🔵 Câu hỏi cho Đức (Về Data / Mô hình ML)
+**Q4: Tại sao lại dùng HOG để phát hiện giả mạo (Anti-spoofing) mà không phải màu sắc?**
+> **Đức đáp:** Dạ, nếu dùng màu sắc rất dễ bị lừa nếu in ảnh màu. HOG rất mạnh trong việc nắm bắt kết cấu bề mặt (Texture). Màn hình thiết bị điện tử luôn sinh ra hiện tượng nhiễu vân Moiré (các sọc mờ) hoặc lóa sáng phản chiếu mà mắt thường khó để ý, nhưng độ dốc vi phân (Gradient) của HOG sẽ bắt được các góc bất thường này. Da người thật thì có độ phản xạ ánh sáng (Lambertian) khuếch tán đều đặn hơn. 
 
-- Deadline báo cáo: **Thứ 4 tuần sau**.
-- Mọi thay đổi về pipeline (format HOG vector, tên file model...) cần thông báo ngay cho cả nhóm để tránh lỗi tích hợp.
+**Q5: Tại sao nhóm phải dùng đến 2 mô hình SVM riêng biệt? Dùng 1 cái có được không?**
+> **Đức đáp:** Dạ được nhưng sẽ kém hiệu quả. Nhận diện danh tính là bài toán phân loại đa lớp (Multi-class), HOG cần tập trung vào đường nét mắt/mũi. Trong khi đó, chống giả mạo là bài toán phân loại nhị phân (Binary - Thật/Giả), HOG cần tập trung vào nhiễu bề mặt. Việc dùng 2 kernel tuyến tính (`LinearSVC`) chạy song song vừa nhanh nhẹn, vừa giúp mỗi model tập trung tối ưu cực đại cho 1 nhiệm vụ chuyên biệt.
+
+**Q6: Làm sao để xử lý tình huống số lượng ảnh mặt thật nhiều hơn hẳn ảnh mặt giả mạo (Class Imbalance)?**
+> **Đức đáp:** Quá trình huấn luyện em dùng tham số `class_weight='balanced'` trong thư viện scikit-learn. Nó sẽ tự động tính toán và phạt nặng hơn nếu mô hình đoán sai lớp thiểu số (ảnh giả), ép siêu phẳng (hyperplane) của SVM phải phân chia công bằng cho cả 2 loại.
+
+---
+*Chúc hai bạn tự tin thuyết trình và bảo vệ đồ án thành công!*
