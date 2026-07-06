@@ -102,11 +102,10 @@ def process_and_predict(img):
         img_small = img
 
     gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
-    # Tăng độ nhạy (sensitive) cho camera thực tế
-    # - scaleFactor=1.05: Quét kỹ hơn các kích thước khuôn mặt
-    # - minNeighbors=3: Dễ dàng nhận diện hơn (chấp nhận ít box trùng lắp hơn)
-    # - minSize=(30, 30): Bắt được khuôn mặt ở khoảng cách xa hơn
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30))
+    gray = cv2.equalizeHist(gray)
+    # Tăng minNeighbors lên 10 và minSize lên 80 để triệt tiêu hoàn toàn các bóng mờ phía sau.
+    # - minSize=(80, 80): Bỏ qua những vật thể nền như tay cầm hộp iMac
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=10, minSize=(80, 80))
 
     results = []
     for (x, y, w, h) in faces:

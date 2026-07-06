@@ -10,8 +10,8 @@ st.title("HỆ THỐNG ĐIỂM DANH THÔNG MINH")
 st.subheader("Hệ thống An ninh & Kiểm soát ra vào")
 st.markdown("---")
 
-# Tạo 2 tab: Upload ảnh và Camera trực tiếp
-tab1, tab2 = st.tabs(["Kiểm tra qua ảnh", "Camera giám sát"])
+# Tạo 3 tab: Upload ảnh, Camera trực tiếp và Video
+tab1, tab2, tab3 = st.tabs(["Kiểm tra qua ảnh", "Camera giám sát", "Kiểm tra qua Video"])
 
 # ================= TAB 1: UPLOAD ẢNH =================
 with tab1:
@@ -35,7 +35,10 @@ with tab1:
                 if len(results) == 0:
                     st.warning("Không phát hiện khuôn mặt.")
                     pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-                    st.image(pil_img, caption="Ảnh gốc")
+                    col1, col2, col3 = st.columns([1, 4, 1])
+                    with col2:
+                        with st.container(border=True):
+                            st.image(pil_img, caption="Ảnh gốc", use_column_width=True)
                 else:
                     result_img = img.copy()
                     for res in results:
@@ -69,7 +72,12 @@ with tab1:
                         )
 
                     cv2.imwrite("temp_result.jpg", result_img)
-                    st.image("temp_result.jpg", caption="Kết quả nhận diện")
+                    st.markdown("---")
+                    st.markdown("### KHUNG KẾT QUẢ")
+                    col1, col2, col3 = st.columns([1, 4, 1])
+                    with col2:
+                        with st.container(border=True):
+                            st.image("temp_result.jpg", caption="Kết quả nhận diện", use_column_width=True)
 
             except Exception as e:
                 st.error(f"❌ Lỗi: {str(e)}")
@@ -110,7 +118,11 @@ with tab2:
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             
             if not cap.isOpened():
-                st.error("❌ Không thể kết nối với Camera! Hãy kiểm tra quyền truy cập Camera của Windows.")
+                st.error("Không thể kết nối với Camera! Hãy kiểm tra quyền truy cập Camera của Windows.")
+            
+            # Khởi tạo mô hình HOG nhận diện người mặc định của OpenCV
+            hog_body = cv2.HOGDescriptor()
+            hog_body.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
             
             while run_camera:
                 ret, frame = cap.read()
@@ -148,6 +160,13 @@ with tab2:
                     cv2.putText(frame, label, (x, max(y - 10, 10)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, box_color, 2)
 
+                # Tự động nhận diện cơ thể người (Pedestrian) bằng HOG
+                (boxes, weights) = hog_body.detectMultiScale(frame, winStride=(8, 8), padding=(8, 8), scale=1.05)
+                for (x, y, w, h) in boxes:
+                    cv2.rectangle(frame, (x, y), (x+w, y+h), (255, 0, 255), 2)
+                    cv2.putText(frame, "HUMAN BODY (HOG)", (x, max(y - 10, 10)), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+
                 # ======= CẬP NHẬT KHUNG ẢNH BÊN PHẢI =======
                 if matched_person:
                     # Nếu quét trúng người quen -> Dừng ảnh lại ở người đó (Lock-on)
@@ -174,3 +193,66 @@ with tab2:
                 # Khi bỏ tick checkbox
                 cap.release()
                 st.write("Camera đã được tắt.")
+
+# ================= TAB 3: KIỂM TRA QUA VIDEO =================
+with tab3:
+    st.markdown("""
+    **Hướng dẫn:** Tải lên một đoạn video để hệ thống tự động quét, điểm danh khuôn mặt và cơ thể.
+    """)
+    uploaded_video = st.file_uploader("Upload video (.mp4, .avi, .mov)", type=["mp4", "avi", "mov"])
+    
+    if uploaded_video is not None:
+        import tempfile
+        tfile = tempfile.NamedTemporaryFile(delete=False) 
+        tfile.write(uploaded_video.read())
+        
+        vf = cv2.VideoCapture(tfile.name)
+        stframe = st.empty()
+        
+        # Khởi tạo mô hình HOG nhận diện người
+        hog_body = cv2.HOGDescriptor()
+        hog_body.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+        
+        stop_btn = st.button("Dừng Video")
+        
+        while vf.isOpened() and not stop_btn:
+            ret, frame = vf.read()
+            if not ret:
+                st.success("Đã phát xong video!")
+                break
+                
+            # Resize để xử lý nhanh hơn (tối đa 800px chiều rộng)
+            h, w = frame.shape[:2]
+            if w > 800:
+                scale = 800 / w
+                frame = cv2.resize(frame, (800, int(h * scale)))
+                
+            # Phân tích khuôn mặt
+            results = process_and_predict(frame)
+            for res in results:
+                x, y, w_box, h_box = res['box']
+                name = res['name']
+                liveness = res['liveness']
+                
+                if name.lower() == 'unknown':
+                    name_display = "KHONG HOP LE"
+                    box_color = (0, 0, 255)
+                else:
+                    name_display = name.upper()
+                    box_color = (0, 255, 0) if liveness == "Real" else (0, 165, 255)
+                    
+                cv2.rectangle(frame, (x, y), (x+w_box, y+h_box), box_color, 2)
+                cv2.putText(frame, f"{name_display} | {liveness}", (x, max(y - 10, 10)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, box_color, 2)
+
+            # Phân tích cơ thể (HOG)
+            (boxes, weights) = hog_body.detectMultiScale(frame, winStride=(8, 8), padding=(8, 8), scale=1.05)
+            for (x, y, w_box, h_box) in boxes:
+                cv2.rectangle(frame, (x, y), (x+w_box, y+h_box), (255, 0, 255), 2)
+                cv2.putText(frame, "HUMAN BODY (HOG)", (x, max(y - 10, 10)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2)
+
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            stframe.image(frame_rgb)
+            
+        vf.release()

@@ -26,6 +26,8 @@ def detect_and_crop(image_path):
 
     # Chuyển sang ảnh xám để tăng tốc độ detect
     gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
+    # Cân bằng độ sáng (giúp nhận diện tốt hơn khi ảnh thiếu sáng/kính lóa)
+    gray = cv2.equalizeHist(gray)
 
     faces = face_cascade.detectMultiScale(
         gray,
