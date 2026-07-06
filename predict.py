@@ -70,14 +70,19 @@ def draw_result(img, identity, liveness):
     result = img.copy()
     
     for (x, y, w, h) in faces:
-        # Màu box: xanh lá = Thật, đỏ = Giả mạo
-        color = (0, 255, 0) if liveness == "real" else (0, 0, 255)
+        # Khớp quy ước màu với app.py và báo cáo (Mục 3.2, 11)
+        if identity.lower() == 'unknown':
+            color = (0, 0, 255) # Đỏ cho người lạ
+            label_name = "KHONG HOP LE"
+        else:
+            label_name = identity.upper()
+            color = (0, 255, 0) if liveness.lower() == "real" else (0, 165, 255) # Xanh lá (Real), Cam (Spoof)
         
         # Vẽ bounding box
         cv2.rectangle(result, (x, y), (x+w, y+h), color, 2)
         
         # Nhãn hiển thị
-        label = f"{identity.upper()} | {'THAT' if liveness == 'real' else 'GIA MAO'}"
+        label = f"{label_name} | {'THAT' if liveness.lower() == 'real' else 'GIA MAO'}"
         cv2.putText(result, label, (x, y - 10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
     
@@ -103,9 +108,9 @@ def process_and_predict(img):
 
     gray = cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
     gray = cv2.equalizeHist(gray)
-    # Tăng minNeighbors lên 10 và minSize lên 80 để triệt tiêu hoàn toàn các bóng mờ phía sau.
-    # - minSize=(80, 80): Bỏ qua những vật thể nền như tay cầm hộp iMac
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=10, minSize=(80, 80))
+    # Tối ưu nhận diện theo đúng báo cáo mục 4.5: minNeighbors=3, scaleFactor=1.05
+    # - minSize=(40, 40) để nhận diện được khuôn mặt ở xa camera
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=3, minSize=(40, 40))
 
     results = []
     for (x, y, w, h) in faces:

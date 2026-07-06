@@ -1,112 +1,140 @@
 import cv2
 import numpy as np
 import os
-import joblib
-from sklearn.svm import LinearSVC
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
 from hog_extractor import extract_hog
-from face_detector import detect_and_crop
+from augment import augment_real, make_synthetic_spoof
 
-DATASET_PATH = "dataset"
+RAW_DIR = "data/raw"
+PROCESSED_DIR = "data/processed"
 
-# Nhãn cần augment (nhãn thiểu số)
-AUGMENT_LABELS = {"person_a", "person_b"}
+# Load Haar Cascade trực tiếp như trong báo cáo
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+)
 
-
-def augment_face(face):
-    """Tạo nhiều phiên bản augmented từ một ảnh khuôn mặt."""
-    results = [face]
-
-    # Lật ngang
-    results.append(cv2.flip(face, 1))
-
-    # Xoay ±10 độ
-    h, w = face.shape[:2]
-    center = (w // 2, h // 2)
-    for angle in [-10, 10]:
-        M = cv2.getRotationMatrix2D(center, angle, 1.0)
-        rotated = cv2.warpAffine(face, M, (w, h))
-        results.append(rotated)
-
-    # Tăng/giảm độ sáng
-    results.append(cv2.convertScaleAbs(face, alpha=1.2, beta=20))
-    results.append(cv2.convertScaleAbs(face, alpha=0.8, beta=-20))
-
-    return results  # 6 ảnh mỗi gốc
-
-def load_dataset():
-    X = []
-    y = []
+def process_identity():
+    print("=== TIỀN XỬ LÝ DỮ LIỆU DANH TÍNH (IDENTITY) ===")
+    X, y = [], []
     
-    labels = os.listdir(DATASET_PATH)
-    print("Nhãn tìm thấy:", labels)
+    # Các nhãn thiểu số cần augment
+    AUGMENT_LABELS = {"person_a", "person_b"}
+    labels = ["person_a", "person_b", "unknown"]
     
     for label in labels:
-        folder = os.path.join(DATASET_PATH, label)
+        folder = os.path.join(RAW_DIR, label)
         if not os.path.isdir(folder):
+            print(f"Không tìm thấy thư mục {folder}")
             continue
-        
-        files = os.listdir(folder)
-        print(f"Đang xử lý nhãn '{label}': {len(files)} ảnh")
+            
+        files = [f for f in os.listdir(folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        print(f"Nhãn '{label}': {len(files)} ảnh")
         
         for filename in files:
-            if not filename.lower().endswith((".jpg", ".jpeg", ".png")):
-                continue
-            
             img_path = os.path.join(folder, filename)
-            
-            # Detect và crop khuôn mặt
-            face, _ = detect_and_crop(img_path)
-            
-            if face is None:
-                print(f"  Bỏ qua (không detect được mặt): {filename}")
+            img = cv2.imread(img_path)
+            if img is None:
                 continue
+                
+            # Resize ảnh nếu quá lớn để chạy cho nhanh
+            h, w = img.shape[:2]
+            if max(h, w) > 800:
+                scale = 800 / max(h, w)
+                img = cv2.resize(img, (0, 0), fx=scale, fy=scale)
+                
+            # Tiền xử lý ảnh như báo cáo mô tả: cv2.equalizeHist()
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            gray = cv2.equalizeHist(gray)
             
-            # Augment nếu là nhãn thiểu số, ngược lại chỉ dùng ảnh gốc
-            faces = augment_face(face) if label in AUGMENT_LABELS else [face]
-
-            for f in faces:
+            # Detect mặt trực tiếp
+            faces = face_cascade.detectMultiScale(
+                gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30)
+            )
+            
+            if len(faces) == 0:
+                continue
+                
+            x, y_c, w, h = faces[0]
+            face_roi = img[y_c:y_c+h, x:x+w]
+            face_resized = cv2.resize(face_roi, (64, 64))
+            
+            # Augment
+            faces_to_process = augment_real(face_resized) if label in AUGMENT_LABELS else [face_resized]
+            
+            for f in faces_to_process:
                 hog_vec = extract_hog(f)
                 X.append(hog_vec)
                 y.append(label)
+                
+    X = np.array(X)
+    y = np.array(y)
     
-    return np.array(X), np.array(y)
+    os.makedirs(PROCESSED_DIR, exist_ok=True)
+    np.save(os.path.join(PROCESSED_DIR, "X_identity.npy"), X)
+    np.save(os.path.join(PROCESSED_DIR, "y_identity.npy"), y)
+    print(f"Đã lưu X_identity.npy ({X.shape}) và y_identity.npy ({y.shape})\n")
 
+def process_liveness():
+    print("=== TIỀN XỬ LÝ DỮ LIỆU LIVENESS (THẬT/GIẢ) ===")
+    X, y = [], []
+    
+    # Lấy tất cả ảnh thật từ các thư mục người dùng + thư mục real
+    folders_to_read = ["person_a", "person_b", "unknown", "real"]
+    files_with_paths = []
+    
+    for folder_name in folders_to_read:
+        folder = os.path.join(RAW_DIR, folder_name)
+        if os.path.isdir(folder):
+            fs = [f for f in os.listdir(folder) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            for f in fs:
+                files_with_paths.append(os.path.join(folder, f))
+                
+    print(f"Tổng số ảnh thật (Real) dùng cho Liveness: {len(files_with_paths)} ảnh")
+    
+    for img_path in files_with_paths:
+        img = cv2.imread(img_path)
+        if img is None:
+            continue
+            
+        h, w = img.shape[:2]
+        if max(h, w) > 800:
+            scale = 800 / max(h, w)
+            img = cv2.resize(img, (0, 0), fx=scale, fy=scale)
+            
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        
+        faces = face_cascade.detectMultiScale(
+            gray, scaleFactor=1.05, minNeighbors=3, minSize=(30, 30)
+        )
+        
+        if len(faces) == 0:
+            continue
+            
+        x, y_c, w, h = faces[0]
+        face_roi = img[y_c:y_c+h, x:x+w]
+        face_resized = cv2.resize(face_roi, (64, 64))
+        
+        # Ảnh Thật: Augment
+        for real_face in augment_real(face_resized):
+            X.append(extract_hog(real_face))
+            y.append("real")
+            
+        # Ảnh Giả mạo: Sinh synthetic spoof từ face_resized
+        for spoof_face in make_synthetic_spoof(face_resized):
+            X.append(extract_hog(spoof_face))
+            y.append("spoof")
+            # Tăng cường fake bằng cách lật để cân bằng số lượng
+            X.append(extract_hog(cv2.flip(spoof_face, 1)))
+            y.append("spoof")
 
-def train_and_save():
-    print("=== BẮT ĐẦU LOAD DATASET ===")
-    X, y = load_dataset()
+    X = np.array(X)
+    y = np.array(y)
     
-    if len(X) == 0:
-        print("Không load được ảnh nào — kiểm tra lại cấu trúc thư mục")
-        return
-    
-    print(f"\nTổng ảnh load được: {len(X)}")
-    print(f"Phân bố nhãn: { {label: list(y).count(label) for label in set(y)} }")
-    
-    # Chia train/test 80/20
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-    
-    print(f"\nTrain: {len(X_train)} ảnh | Test: {len(X_test)} ảnh")
-    
-    # Train SVM
-    print("\n=== BẮT ĐẦU TRAIN SVM ===")
-    model = LinearSVC(C=1.0, max_iter=2000, class_weight="balanced")
-    model.fit(X_train, y_train)
-    
-    # Đánh giá
-    y_pred = model.predict(X_test)
-    print("\n=== KẾT QUẢ ĐÁNH GIÁ ===")
-    print(classification_report(y_test, y_pred))
-    
-    # Lưu model
-    os.makedirs("models", exist_ok=True)
-    joblib.dump(model, "models/model_identity.pkl")
-    print("Đã lưu model vào models/model_identity.pkl")
-
+    os.makedirs(PROCESSED_DIR, exist_ok=True)
+    np.save(os.path.join(PROCESSED_DIR, "X_liveness.npy"), X)
+    np.save(os.path.join(PROCESSED_DIR, "y_liveness.npy"), y)
+    print(f"Đã lưu X_liveness.npy ({X.shape}) và y_liveness.npy ({y.shape})\n")
 
 if __name__ == "__main__":
-    train_and_save()
+    process_identity()
+    process_liveness()
