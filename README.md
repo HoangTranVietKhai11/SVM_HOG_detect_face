@@ -16,30 +16,13 @@ Hệ thống yêu cầu cài đặt Python 3. Khởi tạo môi trường ảo (
 pip install -r requirements.txt
 ```
 
-### Bước 2: Thu thập thêm dữ liệu (Tuỳ chọn)
-Nếu bạn muốn hệ thống nhận diện thêm khuôn mặt mới, hãy chạy script thu thập ảnh tự động:
-```bash
-python capture_faces.py
-```
-Sau đó làm theo hướng dẫn trên màn hình (nhấn phím 1, 2, 3 tương ứng để thêm khuôn mặt, nhấn `q` để thoát). Dữ liệu sẽ tự động lưu vào `data/raw/`.
-
-### Bước 3: Tiền xử lý dữ liệu và trích xuất đặc trưng HOG
-Trước khi huấn luyện, cần đưa ảnh gốc qua module cắt mặt, tăng cường dữ liệu (augmentation) và trích xuất thành vector HOG:
-```bash
-python preprocess.py
-```
-Hệ thống sẽ chạy và tự động lưu các ma trận `.npy` vào thư mục `data/processed/`.
-
-### Bước 4: Huấn luyện mô hình SVM
-Thực hiện huấn luyện cả 2 mô hình (Identity và Liveness) dựa trên dữ liệu đã được tiền xử lý:
-```bash
-python train_svm.py
-```
-Sau khi huấn luyện thành công, hệ thống sẽ in ra màn hình độ chính xác (Accuracy) và tự động lưu mô hình vào thư mục `models/`.
-
-### Bước 5: Chạy ứng dụng Giao diện Web (Streamlit)
-Cuối cùng, để trải nghiệm hệ thống điểm danh và giám sát camera:
+### Bước 2: Chạy ứng dụng Giao diện Web (Streamlit)
+Bạn có thể thực hiện tất cả các bước (thu thập dữ liệu, tiền xử lý, huấn luyện mô hình, và nhận diện) trực tiếp trên giao diện web:
 ```bash
 streamlit run app.py
 ```
-Trình duyệt sẽ tự động mở trang web (mặc định tại `localhost:8501`). Bạn có thể chuyển đổi giữa 2 Tab (Tải ảnh tĩnh và Camera giám sát thời gian thực) để kiểm tra kết quả.
+Trình duyệt sẽ tự động mở trang web (mặc định tại `localhost:8501`). Hệ thống cung cấp các chức năng chính ở thanh menu bên trái (Sidebar):
+- **Thu thập dữ liệu (Capture Faces):** Thêm dữ liệu khuôn mặt cho người mới thông qua webcam.
+- **Tiền xử lý (Preprocess):** Cắt mặt, tăng cường dữ liệu và trích xuất đặc trưng HOG.
+- **Huấn luyện mô hình (Train):** Huấn luyện mô hình SVM (Identity và Liveness).
+- **Trang chủ (Trải nghiệm nhận diện):** Tải ảnh tĩnh hoặc kết nối webcam để điểm danh và nhận diện chống giả mạo thời gian thực.

@@ -1,8 +1,8 @@
 import cv2
 import numpy as np
 import os
-from hog_extractor import extract_hog
-from augment import augment_real, make_synthetic_spoof
+from src.hog_extractor import extract_hog
+from src.augment import augment_real, make_synthetic_spoof
 
 RAW_DIR = "data/raw"
 PROCESSED_DIR = "data/processed"

@@ -2,7 +2,7 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-from predict import process_and_predict
+from src.predict import process_and_predict
 
 st.set_page_config(page_title="Hệ thống Điểm danh", layout="wide")
 
@@ -106,9 +106,12 @@ with tab2:
             # Lấy trước danh sách toàn bộ ảnh trong database để làm hiệu ứng "tìm kiếm"
             import glob
             import time
+            import os
             all_db_images = []
-            for ext in ["*.jpg", "*.jpeg", "*.png"]:
-                all_db_images.extend(glob.glob(f"data/raw/person_*/{ext}"))
+            valid_folders = [d for d in os.listdir("data/raw") if os.path.isdir(os.path.join("data/raw", d)) and d not in ["unknown", "real", "spoof"]]
+            for folder in valid_folders:
+                for ext in ["*.jpg", "*.jpeg", "*.png"]:
+                    all_db_images.extend(glob.glob(f"data/raw/{folder}/{ext}"))
                 
             # 0 là ID của webcam mặc định trên laptop
             cap = cv2.VideoCapture(0)
@@ -120,7 +123,9 @@ with tab2:
             if not cap.isOpened():
                 st.error("Không thể kết nối với Camera! Hãy kiểm tra quyền truy cập Camera của Windows.")
             
-            # Đã gỡ bỏ tính năng quét toàn thân (HOG Pedestrian) để tập trung 100% tài nguyên cho việc điểm danh khuôn mặt
+            # Khởi tạo HOG Pedestrian Detector để quét cơ thể người
+            hog_body = cv2.HOGDescriptor()
+            hog_body.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
             
             while run_camera:
                 ret, frame = cap.read()
@@ -158,17 +163,23 @@ with tab2:
                     cv2.putText(frame, label, (x, max(y - 10, 10)),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, box_color, 2)
 
-                # (Khu vực nhận diện cơ thể đã được dọn dẹp)
+                # ======= NHẬN DIỆN CƠ THỂ NGƯỜI =======
+                (body_rects, weights) = hog_body.detectMultiScale(frame, winStride=(8,8), padding=(8,8), scale=1.1)
+                for (xb, yb, wb, hb) in body_rects:
+                    cv2.rectangle(frame, (xb, yb), (xb+wb, yb+hb), (255, 0, 0), 2)
+                    cv2.putText(frame, "Human Body", (xb, max(yb - 10, 10)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
 
                 # ======= CẬP NHẬT KHUNG ẢNH BÊN PHẢI =======
                 if matched_person:
-                    # Nếu quét trúng người quen -> Dừng ảnh lại ở người đó (Lock-on)
-                    folder_name = matched_person.lower().replace("persona", "person_a").replace("personb", "person_b")
+                    # Nếu quét trúng người quen -> Hiển thị các ảnh của người đó
+                    folder_name = matched_person.lower()
                     matched_imgs = glob.glob(f"data/raw/{folder_name}/*.*")
                     with ref_placeholder.container():
                         st.success(f"XÁC THỰC THÀNH CÔNG: {matched_person.upper()}")
                         if matched_imgs:
-                            st.image(matched_imgs[0], caption="Ảnh gốc lưu trong CSDL")
+                            idx = int(time.time() * 2) % len(matched_imgs)
+                            st.image(matched_imgs[idx], caption=f"Dữ liệu gốc: {matched_person.upper()}")
                 else:
                     # Nếu không thấy ai hoặc là Người Lạ -> Đảo liên tục ảnh database để giả lập đang tìm kiếm
                     with ref_placeholder.container():
