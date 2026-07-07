@@ -5,8 +5,5 @@ venv/
 __pycache__/
 *.pyc
 
-# Bỏ qua dữ liệu ảnh thô để tránh nặng repo
-data/raw/
-
 # Bỏ qua thư mục archive chứa file zip 1.4GB và các file nháp cũ
 archive/
